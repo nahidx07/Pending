@@ -1,41 +1,47 @@
 import os
-from telethon import TelegramClient
-from telethon.tl.functions.channels import GetParticipantsRequest, EditBannedRequest
-from telethon.tl.types import ChannelParticipantsRequests, ChatBannedRights
-from flask import Flask, jsonify
+import asyncio
+from telethon import TelegramClient, events
+from telethon.tl.functions.channels import EditBannedRequest
+from telethon.tl.types import ChatBannedRights, ChannelParticipantsRequests
 
 # Environment Variables
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # Optional, can use bot instead of user
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))  # Numeric ID of your channel
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 
-# Telegram client (Userbot)
+# Userbot client (required to approve pending members)
 client = TelegramClient('userbot', API_ID, API_HASH)
 
-app = Flask(__name__)
+# Bot client
+from telethon import TelegramClient as BotClient
+bot = BotClient('bot', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
-@app.route("/approve", methods=["GET"])
-def approve_pending():
-    with client:
-        pending_users = client.get_participants(CHANNEL_ID, filter=ChannelParticipantsRequests)
-        count = 0
-        for user in pending_users:
-            try:
-                # Approve by removing restrictions (if any)
-                client(EditBannedRequest(
-                    CHANNEL_ID,
-                    user.id,
-                    ChatBannedRights(
-                        until_date=None,
-                        view_messages=False  # Remove ban
-                    )
-                ))
-                count += 1
-            except:
-                continue
-    return jsonify({"status": "success", "approved_count": count})
+async def approve_pending():
+    pending = await client.get_participants(CHANNEL_ID, filter=ChannelParticipantsRequests)
+    count = 0
+    for user in pending:
+        try:
+            await client(EditBannedRequest(
+                CHANNEL_ID,
+                user.id,
+                ChatBannedRights(until_date=None, view_messages=False)
+            ))
+            count += 1
+        except:
+            continue
+    return count
 
-if __name__ == "__main__":
-    client.start()
-    app.run(host="0.0.0.0", port=5000)
+# Bot event handler
+@bot.on(events.NewMessage(pattern="/addMember"))
+async def handler(event):
+    await event.reply("Starting to approve all pending members...")
+    count = await approve_pending()
+    await event.reply(f"✅ Total {count} pending members approved and added to the channel.")
+
+async def main():
+    await client.start()
+    print("Userbot logged in...")
+    await bot.run_until_disconnected()
+
+asyncio.run(main())
