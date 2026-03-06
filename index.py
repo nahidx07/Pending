@@ -14,8 +14,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 client = TelegramClient('userbot', API_ID, API_HASH)
 
 # Bot client
-from telethon import TelegramClient as BotClient
-bot = BotClient('bot', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+bot = TelegramClient('bot', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
 async def approve_pending():
     pending = await client.get_participants(CHANNEL_ID, filter=ChannelParticipantsRequests)
@@ -32,7 +31,7 @@ async def approve_pending():
             continue
     return count
 
-# Bot event handler
+# Bot command
 @bot.on(events.NewMessage(pattern="/addMember"))
 async def handler(event):
     await event.reply("Starting to approve all pending members...")
